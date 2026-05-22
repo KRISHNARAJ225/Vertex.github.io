@@ -1,0 +1,837 @@
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { getCustomers, createCustomer, updateCustomer as updateCust, deleteCustomer as deleteCust } from '../Service.js/CustomerService.js';
+import { getCategories, createCategory, updateCategory as updateCat, deleteCategory as deleteCat } from '../Service.js/CategoryService.js';
+import { getProducts, getProduct, createProduct, updateProduct as updateProd, deleteProduct as deleteProd } from '../Service.js/ProductService.js';
+import { getOrders, createOrder, updateOrder as updateOrd, deleteOrder as deleteOrd, updateOrderStatus as updateOrdStatus, updateOrderPaymentStatus as updateOrdPaymentStatus } from '../Service.js/OrderService.js';
+import { getUsers as apiGetUsers, updateUser as apiUpdateUser, deleteUser as apiDeleteUser } from '../Service.js/UserService.js';
+import { registerUser as apiRegisterUser } from '../Service.js/AuthService.js';
+import { createStock as apiCreateStock, getStocks as apiGetStocks, updateStock as apiUpdateStock, deleteStock as apiDeleteStock } from '../Service.js/StockService.js';
+
+const DataContext = createContext();
+
+export const useData = () => {
+  const context = useContext(DataContext);
+  if (!context) throw new Error('useData must be used within a DataProvider');
+  return context;
+};
+
+export const DataProvider = ({ children }) => {
+  const [token, setToken]               = useState(() => localStorage.getItem('authToken'));
+  const [customers, setCustomers]       = useState([]);
+  const [categories, setCategories]     = useState([]);
+  const [products, setProducts]         = useState([]);
+  const [orders, setOrders]             = useState([]);
+  const [registeredUsers, setRegisteredUsers] = useState([]);
+  const [notifications, setNotifications]     = useState([]);
+  const [stockLogs, setStockLogs]             = useState([]);
+  const [language, setLanguage]               = useState(() => localStorage.getItem('language') || 'en');
+
+  const translations = {
+    en: {
+      settings: 'Settings',
+      dashboard: 'Dashboard',
+      customers: 'Customers',
+      divisions: 'Divisions',
+      products: 'Products',
+      transactions: 'Transactions',
+      stocks: 'Stocks',
+      users: 'Users',
+      calendar: 'Calendar',
+      help: 'Help',
+      logout: 'Logout',
+      profile_info: 'Profile Information',
+      appearance: 'Appearance & Theme Color',
+      zoom: 'Zoom & Magnifier',
+      notifs: 'Notifications',
+      lang_region: 'Language & Region',
+      sys_info: 'System Info',
+      save: 'Save Settings',
+      saved: 'Saved!',
+      welcome: 'Welcome'
+    },
+    ta: {
+      settings: 'அமைப்புகள்',
+      dashboard: 'டாஷ்போர்டு',
+      customers: 'வாடிக்கையாளர்கள்',
+      divisions: 'பிரிவுகள்',
+      products: 'தயாரிப்புகள்',
+      transactions: 'பரிவர்த்தனைகள்',
+      stocks: 'பங்குகள்',
+      users: 'பயனர்கள்',
+      calendar: 'நாட்காட்டி',
+      help: 'உதவி',
+      logout: 'வெளியேறு',
+      profile_info: 'சுயவிவரத் தகவல்',
+      appearance: 'தோற்றம் மற்றும் தீம் நிறம்',
+      zoom: 'பெரிதாக்குதல்',
+      notifs: 'அறிவிப்புகள்',
+      lang_region: 'மொழி மற்றும் பிராந்தியம்',
+      sys_info: 'கணினி தகவல்',
+      save: 'அமைப்புகளைச் சேமி',
+      saved: 'சேமிக்கப்பட்டது!',
+      welcome: 'வரவேற்கிறோம்'
+    },
+    hi: {
+      settings: 'सेटिंग्स',
+      dashboard: 'डैशबोर्ड',
+      customers: 'ग्राहक',
+      divisions: 'प्रभाग',
+      products: 'उत्पाद',
+      transactions: 'लेनदेन',
+      stocks: 'स्टॉक',
+      users: 'उपयोगकर्ता',
+      calendar: 'कैलेंडर',
+      help: 'मदद',
+      logout: 'लॉग आउट',
+      profile_info: 'प्रोफ़ाइल जानकारी',
+      appearance: 'दिखावट और थीम रंग',
+      zoom: 'ज़ूम और मैग्निफायर',
+      notifs: 'सूचनाएं',
+      lang_region: 'भाषा और क्षेत्र',
+      sys_info: 'सिस्टम जानकारी',
+      save: 'सेटिंग्स सहेजें',
+      saved: 'सहेजा गया!',
+      welcome: 'स्वागत है'
+    },
+    te: {
+      settings: 'సెట్టింగులు',
+      dashboard: 'డాష్‌బోర్డ్',
+      customers: 'కస్టమర్లు',
+      divisions: 'విభాగాలు',
+      products: 'ఉత్పత్తులు',
+      transactions: 'లావాదేవీలు',
+      stocks: 'స్టాక్స్',
+      users: 'వినియోగదారులు',
+      calendar: 'క్యాలెండర్',
+      help: 'సహాయం',
+      logout: 'లాగ్ అవుట్',
+      profile_info: 'ప్రొఫైల్ సమాచారం',
+      appearance: 'రూపం & థీమ్ రంగు',
+      zoom: 'జూమ్ & మాగ్నిఫైయర్',
+      notifs: 'నోటిఫికేషన్లు',
+      lang_region: 'భాష & ప్రాంతం',
+      sys_info: 'సిస్టమ్ సమాచారం',
+      save: 'సెట్టింగ్‌లను సేవ్ చేయి',
+      saved: 'సేవ్ చేయబడింది!',
+      welcome: 'స్వాగతం'
+    },
+    kn: {
+      settings: 'ಸೆಟ್ಟಿಂಗ್‌ಗಳು',
+      dashboard: 'ಡ್ಯಾಶ್‌ಬೋರ್ಡ್',
+      customers: 'ಗ್ರಾಹಕರು',
+      divisions: 'ವಿಭಾಗಗಳು',
+      products: 'ಉತ್ಪನ್ನಗಳು',
+      transactions: 'ವಹಿವಾಟುಗಳು',
+      stocks: 'ಸ್ಟಾಕ್‌ಗಳು',
+      users: 'ಬಳಕೆದಾರರು',
+      calendar: 'ಕ್ಯಾಲೆಂಡರ್',
+      help: 'ಸಹಾಯ',
+      logout: 'ಲಾಗ್ ಔಟ್',
+      profile_info: 'ಪ್ರೊಫೈಲ್ ಮಾಹಿತಿ',
+      appearance: 'ನೋಟ ಮತ್ತು ಥೀಮ್ ಬಣ್ಣ',
+      zoom: 'ಜೂಮ್ ಮತ್ತು ಮ್ಯಾಗ್ನಿಫೈಯರ್',
+      notifs: 'ಅಧಿಸೂಚನೆಗಳು',
+      lang_region: 'ಭಾಷೆ ಮತ್ತು ಪ್ರದೇಶ',
+      sys_info: 'ಸಿಸ್ಟಮ್ ಮಾಹಿತಿ',
+      save: 'ಸೆಟ್ಟಿಂಗ್‌ಗಳನ್ನು ಉಳಿಸಿ',
+      saved: 'ಉಳಿಸಲಾಗಿದೆ!',
+      welcome: 'ಸ್ವಾಗತ'
+    },
+    ml: {
+      settings: 'ക്രമീകരണങ്ങൾ',
+      dashboard: 'ഡാഷ്ബോർഡ്',
+      customers: 'ഉപഭോക്താക്കൾ',
+      divisions: 'ഡിവിഷനുകൾ',
+      products: 'ഉൽപ്പന്നങ്ങൾ',
+      transactions: 'ഇടപാടുകൾ',
+      stocks: 'സ്റ്റോക്കുകൾ',
+      users: 'ഉപയോക്താക്കൾ',
+      calendar: 'കലണ്ടർ',
+      help: 'സഹായം',
+      logout: 'ലോഗ് ഔട്ട്',
+      profile_info: 'പ്രൊഫൈൽ വിവരങ്ങൾ',
+      appearance: 'രൂപവും തീം നിറവും',
+      zoom: 'സൂം & മാഗ്നിഫയർ',
+      notifs: 'അറിയിപ്പുകൾ',
+      lang_region: 'ഭാഷയും പ്രദേശവും',
+      sys_info: 'സിസ്റ്റം വിവരങ്ങൾ',
+      save: 'ക്രമീകരണങ്ങൾ സംരക്ഷിക്കുക',
+      saved: 'സംരക്ഷിച്ചു!',
+      welcome: 'സ്വാഗതം'
+    }
+  };
+
+  const t = (key) => translations[language]?.[key] || translations['en'][key] || key;
+
+  useEffect(() => {
+    localStorage.setItem('language', language);
+  }, [language]);
+
+  // Abort Controllers for fetch operations
+  const abortControllers = React.useRef({
+    orders: null,
+    users: null,
+    stocks: null
+  });
+
+  const getAbortSignal = (type) => {
+    if (abortControllers.current[type]) abortControllers.current[type].abort();
+    abortControllers.current[type] = new AbortController();
+    return abortControllers.current[type].signal;
+  };
+
+  const addNotification = (message) =>
+    setNotifications(prev => [{ id: Date.now(), message, date: new Date().toISOString() }, ...prev]);
+
+  // Normalize order fields from backend to match UI expectations
+  const normalizeOrder = (o) => {
+    if (!o) return o;
+    // Handle customer as object or first element of array
+    const custObj = Array.isArray(o.customer) ? o.customer[0] : (o.customer || {});
+    
+    const cid = o.customerId || o.customer_id || custObj?.id || custObj?.customerId || custObj?.customer_id || '';
+    const pid = o.productId  || o.product_id  || o.product?.id  || '';
+    
+    // Improved customer info extraction
+    const custName  = o.customerName  || o.customer_name  || custObj?.name  || custObj?.customerName || custObj?.fullName || (typeof o.customer === 'string' ? o.customer : '') || '';
+    const custEmail = o.customerEmail || o.customer_email || custObj?.email || custObj?.emailAddress || '';
+    const custPhone = o.customerPhone || o.customer_phone || custObj?.phone || custObj?.phoneNumber || '';
+    
+    const prods = Array.isArray(o.products)    ? o.products
+                : Array.isArray(o.orderItems)  ? o.orderItems
+                : Array.isArray(o.items)        ? o.items
+                : Array.isArray(o.orderProducts)? o.orderProducts
+                : [];
+    
+    // Calculate total if missing or zero
+    let total = parseFloat(o.totalAmount ?? o.total_amount ?? o.total ?? o.amount ?? o.grandTotal ?? 0);
+    if (total <= 0 && prods.length > 0) {
+      const subtotal = prods.reduce((sum, p) => sum + ((parseFloat(p.price) || 0) * (parseInt(p.quantity) || 0)), 0);
+      total = subtotal + parseFloat(o.gst || 0) + parseFloat(o.tax || 0) - parseFloat(o.discount || 0);
+    }
+
+    return {
+      ...o,
+      id:              o.id              ?? o._id ?? o.orderId      ?? o.order_id    ?? Date.now(),
+      customerId:      cid,
+      productId:       pid,
+      customerName:    custName,
+      customerEmail:   custEmail,
+      customerPhone:   custPhone,
+      shippingAddress: o.shippingAddress || o.shipping_address || o.deliveryAddress || o.address || custObj?.address || '',
+      shippingDate:    o.shippingDate    || o.shipping_date    || o.deliveryDate    || o.delivery_date || '',
+      orderDate:       o.orderDate       || o.order_date       || o.createdAt       || o.created_at   || '',
+      paymentStatus:   (o.paymentStatus || o.payment_status || o.paymentMethod || o.payment_method || 'PENDING').toUpperCase(),
+      orderStatus:     (o.orderStatus   || o.order_status   || o.status          || 'PENDING').toUpperCase(),
+      totalAmount:     total,
+      products:        prods,
+    };
+  };
+
+  // Normalize category fields
+  const normalizeCategory = (c) => {
+    if (!c) return c;
+    return {
+      ...c,
+      id:   c.id   ?? c.categoryId   ?? c.category_id   ?? c.divisionId   ?? c.division_id   ?? `cat-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      name: c.name || c.categoryName || c.category_name || c.divisionName || c.division_name || '',
+      type: c.type || c.categoryType || c.category_type || 'Physical Goods',
+    };
+  };
+
+  // Normalize product fields
+  const normalizeProduct = (p) => {
+    if (!p) return p;
+    return {
+      ...p,
+      id:              p.id              ?? p.productId       ?? p.product_id,
+      name:            p.name            || p.productName     || p.product_name    || '',
+      price:           parseFloat(p.price ?? p.unitPrice ?? p.unit_price ?? p.sellingPrice ?? p.selling_price ?? 0),
+      quantity:        parseInt(p.quantity ?? p.stock ?? p.stockQuantity ?? p.stock_quantity ?? 0, 10),
+      uom:             p.uom             || p.unit            || p.unitOfMeasure   || p.unit_of_measure || 'pcs',
+      division:        p.division        || p.category?.name  || p.categoryName    || p.category_name   || p.divisionName || '',
+      salableStock:    parseInt(p.salableStock    ?? p.salable_stock    ?? p.availableStock ?? p.available_stock ?? p.quantity ?? 0, 10),
+      unsaleableStock: parseInt(p.unsaleableStock ?? p.unsaleable_stock ?? p.damagedStock   ?? p.damaged_stock  ?? 0, 10),
+      expiryDate:      p.expiryDate      || p.expiry_date     || p.expiry          || '',
+      batchCode:       p.batchCode       || p.batch_code      || p.batch           || '',
+    };
+  };
+
+  // Normalize customer fields
+  const normalizeCustomer = (c) => {
+    if (!c) return c;
+    return {
+      ...c,
+      id:        c.customerId ?? c.customer_id ?? c.customer_Id ?? c.id ?? c._id ?? c.cid,
+      name:      c.name    || c.customerName  || c.customer_name  || c.fullName      || c.full_name || '',
+      email:     c.email   || c.emailAddress  || c.email_address  || '',
+      address:   c.address || c.streetAddress || c.street_address || '',
+      state:     c.state   || c.stateName     || c.state_name     || '',
+      pincode:   c.pincode || c.pinCode       || c.pin_code       || c.zipCode       || c.zip_code || c.postalCode || '',
+      createdAt: c.createdAt || c.created_at  || c.createdDate    || c.create_date   || null,
+    };
+  };
+
+  // Normalize user fields
+  const normalizeUser = (u) => {
+    if (!u) return u;
+    return {
+      ...u,
+      id:           u.id ?? u.userId ?? u.user_id ?? u._id ?? `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      name:         u.name || u.username || u.fullName || 'Unknown User',
+      username:     u.username || '',
+      email:        u.email || '',
+      phone:        u.phone || '',
+      role:         (u.role || 'user').toLowerCase(),
+      registeredAt: u.registeredAt || u.createdAt || u.created_at || u.joinedAt || u.joined_at || null,
+    };
+  };
+
+  // Paginated states for list pages
+  const [customerPageData, setCustomerPageData] = useState({ content: [], totalElements: 0, totalPages: 0, number: 0 });
+  const [categoryPageData, setCategoryPageData] = useState({ content: [], totalElements: 0, totalPages: 0, number: 0 });
+  const [productPageData, setProductPageData] = useState({ content: [], totalElements: 0, totalPages: 0, number: 0 });
+  const [orderPageData, setOrderPageData] = useState({ content: [], totalElements: 0, totalPages: 0, number: 0 });
+
+  const fetchCustomersPage = useCallback(async (page = 0, size = 10, search = '', explicitSignal = null) => {
+    if (search || page === 0) {
+      setCustomerPageData({ content: [], totalElements: 0, totalPages: 0, number: 0 });
+    }
+    const signal = explicitSignal || getAbortSignal('customers');
+    try {
+      const d = await getCustomers(page, size, search, { signal });
+      if (signal.aborted) return;
+      const arr = Array.isArray(d) ? d : (d?.content || []);
+      setCustomerPageData({ content: arr.map(normalizeCustomer), totalElements: d?.totalElements || arr.length, totalPages: d?.totalPages || 1, number: d?.number || 0 });
+    } catch (err) { if (err.name !== 'AbortError') console.error(err); }
+  }, []);
+
+  const fetchCategoriesPage = useCallback(async (page = 0, size = 10, search = '', explicitSignal = null) => {
+    const signal = explicitSignal || getAbortSignal('categories');
+    try {
+      const d = await getCategories(page, size, search, { signal });
+      if (signal.aborted) return;
+      const arr = Array.isArray(d) ? d : (d?.content || []);
+      setCategoryPageData({ content: arr.map(normalizeCategory), totalElements: d?.totalElements || arr.length, totalPages: d?.totalPages || 1, number: d?.number || 0 });
+    } catch (err) { if (err.name !== 'AbortError') console.error(err); }
+  }, []);
+
+  const fetchProductsPage = useCallback(async (page = 0, size = 10, search = '', explicitSignal = null) => {
+    const signal = explicitSignal || getAbortSignal('products');
+    try {
+      const d = await getProducts(page, size, search, { signal });
+      if (signal.aborted) return;
+      const arr = Array.isArray(d) ? d : (d?.content || []);
+      setProductPageData({ content: arr.map(normalizeProduct), totalElements: d?.totalElements || arr.length, totalPages: d?.totalPages || 1, number: d?.number || 0 });
+    } catch (err) { if (err.name !== 'AbortError') console.error(err); }
+  }, []);
+
+  const fetchOrdersPage = useCallback(async (page = 0, size = 10, search = '', explicitSignal = null) => {
+    const signal = explicitSignal || getAbortSignal('orders');
+    try {
+      const d = await getOrders(page, size, search, { signal });
+      if (signal.aborted) return;
+      const arr = Array.isArray(d) ? d : (d?.content || []);
+      setOrderPageData({ content: arr.map(normalizeOrder), totalElements: d?.totalElements || arr.length, totalPages: d?.totalPages || 1, number: d?.number || 0 });
+    } catch (err) { if (err.name !== 'AbortError') console.error(err); }
+  }, []);
+
+  const fetchUsersPage = useCallback(async (page = 0, size = 1000, search = '', explicitSignal = null) => {
+    const signal = explicitSignal || getAbortSignal('users');
+    try {
+      const d = await apiGetUsers(page, size, search, { signal });
+      if (signal.aborted) return;
+      const arr = Array.isArray(d) ? d : (d?.content || []);
+      const apiUsers = arr.map(normalizeUser);
+
+      // Also merge with locally stored users (added via admin modal) that may not be in the API
+      const savedRaw = localStorage.getItem('registeredUsers');
+      const localUsers = savedRaw ? JSON.parse(savedRaw).map(normalizeUser) : [];
+
+      // Deduplicate: API records take priority; only add local users not already in API response
+      const merged = [...apiUsers];
+      localUsers.forEach(localUser => {
+        const exists = merged.some(u =>
+          (u.username && localUser.username && u.username === localUser.username) ||
+          (u.email && localUser.email && u.email === localUser.email) ||
+          (u.id && localUser.id && String(u.id) === String(localUser.id))
+        );
+        if (!exists) merged.push(localUser);
+      });
+
+      setRegisteredUsers(merged);
+    } catch (err) { 
+      if (err.name !== 'AbortError') {
+        const savedUsers = localStorage.getItem('registeredUsers');
+        if (savedUsers) setRegisteredUsers(JSON.parse(savedUsers).map(normalizeUser));
+      }
+    }
+  }, []);
+
+  const fetchStocksPage = useCallback(async (page = 0, size = 1000, explicitSignal = null) => {
+    const signal = explicitSignal || getAbortSignal('stocks');
+    try {
+      const d = await apiGetStocks(page, size, { signal });
+      if (signal.aborted) return;
+      const arr = Array.isArray(d) ? d : (d?.content || []);
+      // Map API stock entries to the UI stockLogs format
+      setStockLogs(arr.map(s => ({
+        id: s.id || Date.now(),
+        productId: s.productId || s.product_id || s.product?.id || 'N/A',
+        productName: s.productName || s.product_name || s.product?.name || `Product #${s.productId || s.product_id || 'N/A'}`,
+        quantity: s.quantity,
+        type: s.type,
+        createdAt: s.createdAt || s.created_at || s.date || s.date_time || new Date().toISOString()
+      })));
+    } catch (err) { if (err.name !== 'AbortError') console.error('Failed to fetch stock logs:', err); }
+  }, []);
+
+  useEffect(() => {
+    if (!token) return;
+    // Fetch all for dashboard aggregations
+    getCustomers(0, 1000).then(d => { setCustomers((Array.isArray(d) ? d : (d?.content || [])).map(normalizeCustomer)); fetchCustomersPage(); }).catch(() => {
+      const s = localStorage.getItem('customers'); if (s) { setCustomers(JSON.parse(s).map(normalizeCustomer)); fetchCustomersPage(); }
+    });
+    getCategories(0, 1000).then(d => { setCategories((Array.isArray(d) ? d : (d?.content || [])).map(normalizeCategory)); fetchCategoriesPage(); }).catch(() => {
+      const s = localStorage.getItem('categories'); if (s) { setCategories(JSON.parse(s).map(normalizeCategory)); fetchCategoriesPage(); }
+    });
+    getProducts(0, 1000).then(d => { setProducts((Array.isArray(d) ? d : (d?.content || [])).map(normalizeProduct)); fetchProductsPage(); }).catch(() => {
+      const s = localStorage.getItem('products'); if (s) { setProducts(JSON.parse(s).map(normalizeProduct)); fetchProductsPage(); }
+    });
+    getOrders(0, 1000).then(d => { setOrders((Array.isArray(d) ? d : (d?.content || [])).map(normalizeOrder)); fetchOrdersPage(); }).catch(() => {
+      const s = localStorage.getItem('orders'); if (s) { setOrders(JSON.parse(s).map(normalizeOrder)); fetchOrdersPage(); }
+    });
+
+    fetchUsersPage();
+    fetchStocksPage();
+  }, [token, fetchCustomersPage, fetchCategoriesPage, fetchProductsPage, fetchOrdersPage, fetchUsersPage, fetchStocksPage]);
+
+  const setAuthToken = (newToken) => {
+    if (newToken) localStorage.setItem('authToken', newToken);
+    else localStorage.removeItem('authToken');
+    setToken(newToken);
+  };
+
+  const clearData = () => {
+    setCustomers([]); setCategories([]); setProducts([]);
+    setOrders([]); setRegisteredUsers([]); setNotifications([]);
+  };
+
+  // ── Customers ──────────────────────────────────────────────────────────────
+  const addCustomer = async (customer) => {
+    if (customers.some(c => (c.name || '').toLowerCase().trim() === (customer.name || '').toLowerCase().trim())) {
+      addNotification(`Cannot add: Customer '${customer.name}' already exists`);
+      return null;
+    }
+    const now = new Date().toISOString();
+    try {
+      const raw = await createCustomer(customer);
+      const n = normalizeCustomer({ createdAt: now, ...raw });
+      setCustomers(prev => [...prev, n]);
+      setCustomerPageData(prev => ({ ...prev, content: [n, ...prev.content], totalElements: prev.totalElements + 1 }));
+      addNotification(`New customer '${n.name}' added`);
+      return n;
+    } catch {
+      const n = normalizeCustomer({ id: Date.now(), createdAt: now, ...customer });
+      setCustomers(prev => { const u = [...prev, n]; localStorage.setItem('customers', JSON.stringify(u)); return u; });
+      setCustomerPageData(prev => ({ ...prev, content: [n, ...prev.content], totalElements: prev.totalElements + 1 }));
+      addNotification(`New customer '${n.name}' added`);
+      return n;
+    }
+  };
+
+  const updateCustomer = async (id, data) => {
+    const displayName = data.name || customers.find(c => String(c.id) === String(id))?.name || 'Customer';
+    // Optimistic: update UI immediately, fire API in background
+    setCustomers(prev => { const u = prev.map(c => String(c.id) === String(id) ? { ...c, ...data } : c); localStorage.setItem('customers', JSON.stringify(u)); return u; });
+    setCustomerPageData(prev => ({ ...prev, content: prev.content.map(c => String(c.id) === String(id) ? { ...c, ...data } : c) }));
+    addNotification(`Customer '${displayName}' updated successfully`);
+    updateCust(id, data).then(res => {
+      const u = normalizeCustomer(res);
+      setCustomers(prev => prev.map(c => String(c.id) === String(id) ? u : c));
+      setCustomerPageData(prev => ({ ...prev, content: prev.content.map(c => String(c.id) === String(id) ? u : c) }));
+    }).catch(() => {/* 403 etc — local update already applied */});
+  };
+
+  const deleteCustomer = async (id) => {
+    // Optimistic: remove from UI immediately, fire API in background
+    setCustomers(prev => { const u = prev.filter(c => String(c.id) !== String(id)); localStorage.setItem('customers', JSON.stringify(u)); return u; });
+    setCustomerPageData(prev => ({ ...prev, content: prev.content.filter(c => String(c.id) !== String(id)), totalElements: Math.max(0, prev.totalElements - 1) }));
+    deleteCust(id).catch(() => {/* 403 etc — local delete already applied */});
+  };
+
+  // ── Categories ─────────────────────────────────────────────────────────────
+  const addCategory = async (category) => {
+    try {
+      const n = normalizeCategory(await createCategory(category));
+      setCategories(prev => [...prev, n]);
+      setCategoryPageData(prev => ({ ...prev, content: [n, ...prev.content], totalElements: prev.totalElements + 1 }));
+      addNotification(`New category '${n.name}' created`);
+      return n;
+    } catch {
+      const n = normalizeCategory({ id: Date.now(), ...category });
+      setCategories(prev => { const u = [...prev, n]; localStorage.setItem('categories', JSON.stringify(u)); return u; });
+      setCategoryPageData(prev => ({ ...prev, content: [n, ...prev.content], totalElements: prev.totalElements + 1 }));
+      addNotification(`New category '${n.name}' created`);
+      return n;
+    }
+  };
+
+  const updateCategory = async (id, data) => {
+    const displayName = data.name || categories.find(c => String(c.id) === String(id))?.name || 'Division';
+    setCategories(prev => { const u = prev.map(c => String(c.id) === String(id) ? { ...c, ...data } : c); localStorage.setItem('categories', JSON.stringify(u)); return u; });
+    setCategoryPageData(prev => ({ ...prev, content: prev.content.map(c => String(c.id) === String(id) ? { ...c, ...data } : c) }));
+    addNotification(`Division '${displayName}' updated successfully`);
+    updateCat(id, data).then(res => {
+      const u = normalizeCategory(res);
+      setCategories(prev => prev.map(c => String(c.id) === String(id) ? u : c));
+      setCategoryPageData(prev => ({ ...prev, content: prev.content.map(c => String(c.id) === String(id) ? u : c) }));
+    }).catch(() => {});
+  };
+
+  const deleteCategory = async (id) => {
+    setCategories(prev => { const u = prev.filter(c => String(c.id) !== String(id)); localStorage.setItem('categories', JSON.stringify(u)); return u; });
+    setCategoryPageData(prev => ({ ...prev, content: prev.content.filter(c => String(c.id) !== String(id)), totalElements: Math.max(0, prev.totalElements - 1) }));
+    deleteCat(id).catch(() => {});
+  };
+
+  // ── Products ───────────────────────────────────────────────────────────────
+  const addProduct = async (product) => {
+    if (products.some(p => (p.name || '').toLowerCase().trim() === (product.name || '').toLowerCase().trim())) {
+      addNotification(`Cannot add: Product '${product.name}' already exists`);
+      return null;
+    }
+    try {
+      const n = normalizeProduct(await createProduct(product));
+      setProducts(prev => [...prev, n]);
+      setProductPageData(prev => ({ ...prev, content: [n, ...prev.content], totalElements: prev.totalElements + 1 }));
+      addNotification(`New product '${n.name}' added`);
+      return n;
+    } catch {
+      const n = normalizeProduct({ id: Date.now(), ...product });
+      setProducts(prev => { const u = [...prev, n]; localStorage.setItem('products', JSON.stringify(u)); return u; });
+      setProductPageData(prev => ({ ...prev, content: [n, ...prev.content], totalElements: prev.totalElements + 1 }));
+      addNotification(`New product '${n.name}' added`);
+      return n;
+    }
+  };
+
+  const updateProduct = async (id, data, { localOnly = false } = {}) => {
+    const displayName = data.name || products.find(p => String(p.id) === String(id))?.name || 'Product';
+    setProducts(prev => { const u = prev.map(p => String(p.id) === String(id) ? { ...p, ...data } : p); localStorage.setItem('products', JSON.stringify(u)); return u; });
+    setProductPageData(prev => ({ ...prev, content: prev.content.map(p => String(p.id) === String(id) ? { ...p, ...data } : p) }));
+    if (!localOnly) addNotification(`Product '${displayName}' updated successfully`);
+    if (localOnly) return;
+    updateProd(id, data).then(res => {
+      const u = normalizeProduct(res);
+      setProducts(prev => prev.map(p => String(p.id) === String(id) ? u : p));
+      setProductPageData(prev => ({ ...prev, content: prev.content.map(p => String(p.id) === String(id) ? u : p) }));
+    }).catch(() => {});
+  };
+
+  const deleteProduct = async (id) => {
+    setProducts(prev => { const u = prev.filter(p => String(p.id) !== String(id)); localStorage.setItem('products', JSON.stringify(u)); return u; });
+    setProductPageData(prev => ({ ...prev, content: prev.content.filter(p => String(p.id) !== String(id)), totalElements: Math.max(0, prev.totalElements - 1) }));
+    deleteProd(id).catch(() => {});
+  };
+
+  // ── Orders ─────────────────────────────────────────────────────────────────
+  const addOrder = async (order) => {
+    try {
+      const createdObj = await createOrder(order);
+      const n = normalizeOrder(createdObj);
+
+      // Backend automatically deducts stock on order creation.
+      // Refresh products from the server to reflect the backend's updated quantities.
+      getProducts(0, 1000).then(d => {
+        const arr = Array.isArray(d) ? d : (d?.content || []);
+        setProducts(arr.map(normalizeProduct));
+        setProductPageData(prev => ({ ...prev, content: arr.map(normalizeProduct) }));
+      }).catch(() => {});
+
+      // Create a stock OUT log entry for tracking
+      const orderItems = order.orderItems || [];
+      for (const item of orderItems) {
+        try {
+          await apiCreateStock({ productId: Number(item.productId), quantity: item.quantity, type: 'OUT' });
+        } catch (e) { console.warn('Stock OUT log failed:', e.message); }
+      }
+      fetchStocksPage();
+
+      setOrders(prev => [...prev, n]);
+      setOrderPageData(prev => ({ ...prev, content: [n, ...prev.content], totalElements: prev.totalElements + 1 }));
+      addNotification(`New transaction #ORD-${n.id.toString().padStart(4, '0')} created`);
+      return n;
+    } catch {
+      const n = normalizeOrder({ id: Date.now(), orderDate: new Date().toISOString().split('T')[0], ...order });
+      setOrders(prev => { const u = [...prev, n]; localStorage.setItem('orders', JSON.stringify(u)); return u; });
+      setOrderPageData(prev => ({ ...prev, content: [n, ...prev.content], totalElements: prev.totalElements + 1 }));
+      addNotification(`New transaction #ORD-${n.id.toString().padStart(4, '0')} created locally`);
+      return n;
+    }
+  };
+
+  const updateOrder = async (id, data) => {
+    // Standardize status for backend
+    const newPaymentStatus = (data.paymentStatus || 'PENDING').toUpperCase();
+    const newOrderStatus   = (data.orderStatus   || 'PENDING').toUpperCase();
+    const payload = { ...data, paymentStatus: newPaymentStatus, orderStatus: newOrderStatus };
+
+    try {
+      // ── 1. Update full order details (name, address, products, etc.) ──
+      let res = null;
+      try {
+        res = await updateOrd(id, payload);
+      } catch (err) {
+        console.warn('[updateOrder] PUT /orders/{id} failed, continuing with status update:', err.message);
+      }
+
+      // ── 2. Always hit dedicated /status endpoint so statuses are persisted ──
+      let statusRes = null;
+      let paymentRes = null;
+      try {
+        statusRes = await updateOrdStatus(id, newOrderStatus);
+        paymentRes = await updateOrdPaymentStatus(id, newPaymentStatus);
+      } catch (err) {
+        console.error('[updateOrder] PUT /orders/{id}/status or /payment failed:', err.message);
+      }
+
+      // Only update locally if at least one API call succeeded
+      if (!res && !statusRes) {
+        throw new Error('Both update API calls failed.');
+      }
+
+      // ── 3. Merge server response back into state ──
+      const merged = normalizeOrder({ ...(res || {}), ...(statusRes || {}), ...payload });
+      const finalUpdate = {
+        ...merged,
+        paymentStatus: newPaymentStatus,
+        orderStatus:   newOrderStatus,
+        customerName:  merged.customerName  || data.customerName,
+        products:      merged.products?.length ? merged.products : (data.products || []),
+      };
+      
+      const applyFinal = (list) => list.map(o => String(o.id) === String(id) ? { ...o, ...finalUpdate } : o);
+      setOrders(prev => { const u = applyFinal(prev); localStorage.setItem('orders', JSON.stringify(u)); return u; });
+      setOrderPageData(prev => ({ ...prev, content: applyFinal(prev.content) }));
+
+      // Fetch from backend to ensure alignment with remote DB.
+      fetchOrdersPage();
+
+      // ── 4. Auto-restore stock if order is CANCELLED (stock was deducted at creation) ──
+      const prevOrder = orders.find(o => String(o.id) === String(id));
+      const prevStatus = (prevOrder?.orderStatus || '').toUpperCase();
+      const orderItems = finalUpdate.products || [];
+
+      if (prevStatus !== 'CANCELLED' && newOrderStatus === 'CANCELLED') {
+        // Cancelled: restore stock (was deducted when order was created)
+        for (const item of orderItems) {
+          const product = products.find(p => String(p.id) === String(item.productId));
+          if (product) {
+            const newQty = parseInt(product.quantity || 0) + parseInt(item.quantity || 0);
+            const payload = {
+              name: product.name,
+              price: Math.max(0.01, parseFloat(product.price) || 1),
+              quantity: newQty,
+              expiryDate: product.expiryDate || null,
+              saleableStock: parseInt(product.salableStock || product.saleableStock || 0),
+              nonSaleableStock: parseInt(product.unsaleableStock || product.nonSaleableStock || 0),
+              sku: product.sku || '',
+              uom: product.uom || 'pcs',
+              divisionName: product.division || product.divisionName || 'Default'
+            };
+            await updateProd(product.id, payload);
+            setProducts(prev => prev.map(p => String(p.id) === String(product.id) ? { ...p, quantity: newQty } : p));
+            setProductPageData(prev => ({ ...prev, content: prev.content.map(p => String(p.id) === String(product.id) ? { ...p, quantity: newQty } : p) }));
+            // Also create a stock IN record
+            try {
+              await apiCreateStock({ productId: Number(product.id), quantity: item.quantity, type: 'IN' });
+            } catch (e) { console.warn('Stock IN record failed:', e.message); }
+          }
+        }
+      }
+
+      addNotification(`Transaction #ORD-${String(id).padStart(4, '0')} updated successfully`);
+      return finalUpdate;
+    } catch (err) {
+      console.error('[updateOrder] Unexpected error:', err);
+      return null;
+    }
+  };
+
+  const updateOrderStatus = async (id, status) => {
+    try {
+      const res = await updateOrdStatus(id, status);
+      const applyUpdate = (list) => list.map(o => String(o.id) === String(id) ? { ...o, orderStatus: status } : o);
+      setOrders(prev => applyUpdate(prev));
+      setOrderPageData(prev => ({ ...prev, content: applyUpdate(prev.content) }));
+      addNotification(`Order status for #ORD-${String(id).padStart(4, '0')} updated to ${status}`);
+      return res;
+    } catch (err) {
+      console.error('Failed to update order status:', err);
+    }
+  };
+
+  const updateOrderPaymentStatus = async (id, status) => {
+    try {
+      const res = await updateOrdPaymentStatus(id, status);
+      const applyUpdate = (list) => list.map(o => String(o.id) === String(id) ? { ...o, paymentStatus: status } : o);
+      setOrders(prev => applyUpdate(prev));
+      setOrderPageData(prev => ({ ...prev, content: applyUpdate(prev.content) }));
+      addNotification(`Payment status for #ORD-${String(id).padStart(4, '0')} updated to ${status}`);
+      return res;
+    } catch (err) {
+      console.error('Failed to update payment status:', err);
+    }
+  };
+
+  // ── Stock ──────────────────────────────────────────────────────────────────
+  const createStock = async (data) => {
+    const product = products.find(p => String(p.id) === String(data.productId));
+    const productName = product?.name || product?.productName || `Product #${data.productId}`;
+
+    // Optimistically push log entry locally so list populates instantly
+    const logEntry = {
+      id: Date.now(),
+      productId: data.productId,
+      productName,
+      quantity: Number(data.quantity),
+      type: data.type,
+      createdAt: new Date().toISOString(),
+    };
+    setStockLogs(prev => [logEntry, ...prev]);
+
+    // Update Product Stock Safely (Optimistic UI only)
+    if (product) {
+        // Compute new quantity for immediate UI feedback
+        let currentQty = parseInt(product.quantity || 0);
+        let newQty = data.type === 'IN' 
+            ? currentQty + parseInt(data.quantity || 0) 
+            : Math.max(0, currentQty - parseInt(data.quantity || 0));
+
+        // Update UI Context immediately
+        setProducts(prev => prev.map(p => String(p.id) === String(product.id) ? { ...p, quantity: newQty } : p));
+        setProductPageData(prev => ({
+          ...prev, content: prev.content.map(p => String(p.id) === String(product.id) ? { ...p, quantity: newQty } : p)
+        }));
+    }
+
+    try {
+      const res = await apiCreateStock(data);
+      addNotification(`Stock ${data.type} of ${data.quantity} units recorded for ${productName}`);
+      fetchStocksPage();   // Refetch stocks
+      return res;
+    } catch (err) {
+      console.error('[createStock] API failed:', err);
+      // Even if API fails, return optimistically generated log
+      return logEntry;
+    }
+  };
+
+  const updateStock = async (id, data) => {
+    try {
+      const res = await apiUpdateStock(id, data);
+      addNotification('Stock movement updated');
+      fetchStocksPage();
+      return res;
+    } catch (err) {
+      console.error('[updateStock] API failed:', err);
+      return null;
+    }
+  };
+
+  const deleteStock = async (id) => {
+    try {
+      await apiDeleteStock(id);
+      setStockLogs(prev => prev.filter(s => String(s.id) !== String(id)));
+      addNotification('Stock movement deleted');
+      return true;
+    } catch (err) {
+      console.error('[deleteStock] API failed:', err);
+      return false;
+    }
+  };
+
+  const deleteOrder = async (id) => {
+    setOrders(prev => { const u = prev.filter(o => String(o.id) !== String(id)); localStorage.setItem('orders', JSON.stringify(u)); return u; });
+    setOrderPageData(prev => ({ ...prev, content: prev.content.filter(o => String(o.id) !== String(id)), totalElements: Math.max(0, prev.totalElements - 1) }));
+    deleteOrd(id).catch(() => {});
+  };
+
+  // ── Users ──────────────────────────────────────────────────────────────────
+  const registerUser = async (userData) => {
+    try {
+      const result = await apiRegisterUser(userData);
+      const userObj = result?.data || result || {};
+      const n = normalizeUser({
+        ...userObj,
+        ...userData,
+        registeredAt: new Date().toISOString(),
+      });
+      setRegisteredUsers(prev => { const u = [...prev, n]; localStorage.setItem('registeredUsers', JSON.stringify(u)); return u; });
+      addNotification(`New user '${n.name}' registered`);
+      return n;
+    } catch {
+      const n = normalizeUser({ ...userData, registeredAt: new Date().toISOString() });
+      setRegisteredUsers(prev => { const u = [...prev, n]; localStorage.setItem('registeredUsers', JSON.stringify(u)); return u; });
+      addNotification(`New user '${n.name}' registered`);
+      return n;
+    }
+  };
+
+  const updateUser = async (id, data) => {
+    // Optimistic update
+    setRegisteredUsers(prev => {
+      const u = prev.map(user => String(user.id) === String(id) ? { ...user, ...data } : user);
+      localStorage.setItem('registeredUsers', JSON.stringify(u));
+      return u;
+    });
+    try {
+      await apiUpdateUser(id, data);
+      addNotification(`User '${data.name || 'Unknown'}' updated successfully`);
+      fetchUsersPage();
+      return true;
+    } catch (err) {
+      console.warn('[updateUser] API failed:', err.message);
+      addNotification(`User '${data.name || 'Unknown'}' updated locally`);
+      return true;
+    }
+  };
+
+  const deleteUser = async (id) => {
+    const user = registeredUsers.find(u => String(u.id) === String(id));
+    setRegisteredUsers(prev => {
+      const u = prev.filter(user => String(user.id) !== String(id));
+      localStorage.setItem('registeredUsers', JSON.stringify(u));
+      return u;
+    });
+    try {
+      await apiDeleteUser(id);
+      addNotification(`User '${user?.name || 'Unknown'}' deleted`);
+      return true;
+    } catch (err) {
+      console.warn('[deleteUser] API failed:', err.message);
+      addNotification(`User '${user?.name || 'Unknown'}' removed locally`);
+      return true;
+    }
+  };
+
+  const value = {
+    token, setAuthToken, clearData,
+    customers, categories, products, orders, registeredUsers, notifications,
+    customerPageData, categoryPageData, productPageData, orderPageData,
+    fetchCustomersPage, fetchCategoriesPage, fetchProductsPage, fetchOrdersPage, fetchUsersPage,
+    addNotification,
+    addCustomer, updateCustomer, deleteCustomer,
+    addCategory, updateCategory, deleteCategory,
+    addProduct, updateProduct, deleteProduct,
+    addOrder, updateOrder, deleteOrder, updateOrderStatus, updateOrderPaymentStatus,
+    registerUser, updateUser, deleteUser,
+    createStock, updateStock, deleteStock, stockLogs,
+    language, setLanguage, t
+  };
+
+  return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
+};
+
+export default DataContext;
